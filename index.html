@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Stack Rush</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      background: #0f172a;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+    #game-container {
+      width: 100%;
+      max-width: 720px;
+      aspect-ratio: 720 / 1280;
+      max-height: 100vh;
+    }
+    canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container"></div>
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+  <script>
+    class Game extends Phaser.Scene {
+      constructor() {
+        super('Game');
+      }
+
+      create() {
+        this.cameras.main.setBackgroundColor('#0f172a');
+        this.stack = [];
+        this.score = 0;
+        this.speed = 4;
+        this.dir = 1;
+        this.gameOver = false;
+
+        // Base block
+        let base = this.add.rectangle(360, 1100, 220, 40, 0x38bdf8);
+        this.stack.push(base);
+
+        // UI elements (fixed to camera)
+        this.scoreText = this.add.text(360, 80, '0', {
+          fontSize: '96px',
+          fontFamily: 'Arial Black',
+          color: '#ffffff'
+        }).setOrigin(0.5).setScrollFactor(0);
+
+        this.add.text(360, 190, 'TAP TO STACK', {
+          fontSize: '26px',
+          color: '#94a3b8'
+        }).setOrigin(0.5).setScrollFactor(0);
+
+        this.spawnBlock();
+
+        this.input.on('pointerdown', () => {
+          if (this.gameOver) {
+            this.scene.restart();
+            return;
+          }
+          this.placeBlock();
+        });
+      }
+
+      spawnBlock() {
+        let last = this.stack[this.stack.length - 1];
+        let color = Phaser.Display.Color.HSLToColor(this.score * 0.03 % 1, 0.8, 0.6).color;
+        this.current = this.add.rectangle(
+          this.dir === 1 ? 0 : 720,
+          last.y - 42,
+          last.width,
+          40,
+          color
+        );
+        this.current.setStrokeStyle(4, 0xffffff, 0.3);
+      }
+
+      placeBlock() {
+        if (!this.current || this.gameOver) return;
+        let last = this.stack[this.stack.length - 1];
+        let diff = Math.abs(this.current.x - last.x);
+
+        // Game over if completely missed
+        if (diff >= last.width) {
+          this.add.text(360, 640, 'GAME OVER\nSCORE: ' + this.score + '\n\nTAP TO RESTART', {
+            fontSize: '42px',
+            color: '#fff',
+            fontStyle: 'bold',
+            align: 'center'
+          }).setOrigin(0.5).setScrollFactor(0);
+          this.gameOver = true;
+          this.cameras.main.shake(200, 0.02);
+          return;
+        }
+
+        let newWidth = last.width - diff;
+
+        // Perfect bonus: no cut, align exactly
+        if (diff < 5) {
+          newWidth = last.width;
+          this.current.x = last.x;
+          this.current.setFillStyle(0xffffff);
+
+          let perfectText = this.add.text(this.current.x, this.current.y - 60, 'PERFECT!', {
+            fontSize: '28px',
+            color: '#facc15'
+          }).setOrigin(0.5);
+
+          this.tweens.add({
+            targets: perfectText,
+            alpha: 0,
+            y: perfectText.y - 50,
+            duration: 800,
+            onComplete: () => perfectText.destroy()
+          });
+        } else {
+          this.current.x = (this.current.x + last.x) / 2;
+        }
+
+        this.current.width = newWidth;
+        this.stack.push(this.current);
+        this.score++;
+        this.scoreText.setText(this.score);
+        this.speed += 0.25;
+        this.dir *= -1;
+
+        // Scroll camera up as stack grows
+        if (this.stack.length > 6) {
+          this.cameras.main.scrollY -= 42;
+        }
+
+        this.spawnBlock();
+      }
+
+      update() {
+        if (this.current && !this.gameOver) {
+          this.current.x += this.speed * this.dir;
+          if (this.current.x < 0 || this.current.x > 720) {
+            this.dir *= -1;
+          }
+        }
+      }
+    }
+
+    new Phaser.Game({
+      type: Phaser.AUTO,
+      width: 720,
+      height: 1280,
+      backgroundColor: '#0f172a',
+      parent: 'game-container',
+      scale: {
+        mode: Phaser.Scale.FIT,
+        autoCenter: Phaser.Scale.CENTER_BOTH
+      },
+      scene: Game
+    });
+  </script>
+</body>
+</html>
